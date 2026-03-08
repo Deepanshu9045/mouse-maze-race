@@ -1,60 +1,70 @@
-// src/utils/astar.js
+/**
+ * A* pathfinding on a 2D grid.
+ * grid: 2D array where 1 = wall, 0 = open
+ * start / end: [row, col]
+ * Returns ordered array of [row,col] positions from start→end (inclusive),
+ * or [] if no path exists.
+ */
 export function astar(grid, start, end) {
   const rows = grid.length;
   const cols = grid[0].length;
 
-  const openSet = [];
-  const closedSet = new Set();
+  const key   = (r, c) => `${r},${c}`;
+  const h     = (r, c) => Math.abs(r - end[0]) + Math.abs(c - end[1]);
+
+  const openSet  = new Map();          // key → node
   const cameFrom = {};
+  const gScore   = {};
+  const fScore   = {};
 
-  const hash = (pos) => `${pos[0]}-${pos[1]}`;
-  const heuristic = (a, b) => Math.abs(a[0]-b[0]) + Math.abs(a[1]-b[1]);
+  const startKey = key(start[0], start[1]);
+  gScore[startKey] = 0;
+  fScore[startKey] = h(start[0], start[1]);
+  openSet.set(startKey, start);
 
-  const gScore = Array(rows).fill(0).map(() => Array(cols).fill(Infinity));
-  const fScore = Array(rows).fill(0).map(() => Array(cols).fill(Infinity));
-
-  gScore[start[0]][start[1]] = 0;
-  fScore[start[0]][start[1]] = heuristic(start, end);
-
-  openSet.push({ pos: start, f: fScore[start[0]][start[1]] });
-
-  const directions = [[1,0], [-1,0], [0,1], [0,-1]];
-
-  while(openSet.length) {
-    openSet.sort((a,b) => a.f - b.f);
-    const current = openSet.shift().pos;
-
-    if(current[0] === end[0] && current[1] === end[1]) {
-      const path = [];
-      let temp = hash(current);
-      while(cameFrom[temp]) {
-        const [r,c] = temp.split('-').map(Number);
-        path.push([r,c]);
-        temp = cameFrom[temp];
-      }
-      path.push(start);
-      return path.reverse();
+  while (openSet.size > 0) {
+    // Pick lowest fScore
+    let currentKey = null;
+    let currentF   = Infinity;
+    for (const [k] of openSet) {
+      const f = fScore[k] ?? Infinity;
+      if (f < currentF) { currentF = f; currentKey = k; }
     }
 
-    closedSet.add(hash(current));
+    const current = openSet.get(currentKey);
+    openSet.delete(currentKey);
 
-    for(const [dr,dc] of directions){
-      const nr = current[0]+dr;
-      const nc = current[1]+dc;
-      if(nr<0||nr>=rows||nc<0||nc>=cols) continue;
-      if(grid[nr][nc]===1) continue;
-      const neighborHash = hash([nr,nc]);
-      if(closedSet.has(neighborHash)) continue;
-      const tentativeG = gScore[current[0]][current[1]] + 1;
-      if(tentativeG < gScore[nr][nc]){
-        cameFrom[neighborHash] = hash(current);
-        gScore[nr][nc] = tentativeG;
-        fScore[nr][nc] = tentativeG + heuristic([nr,nc],end);
-        if(!openSet.find(n=>n.pos[0]===nr && n.pos[1]===nc)){
-          openSet.push({pos:[nr,nc], f:fScore[nr][nc]});
-        }
+    const [cr, cc] = current;
+
+    if (cr === end[0] && cc === end[1]) {
+      // Reconstruct
+      const path = [];
+      let k = currentKey;
+      while (k) {
+        const [r, c] = k.split(',').map(Number);
+        path.unshift([r, c]);
+        k = cameFrom[k];
+      }
+      return path;
+    }
+
+    for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+      const nr = cr + dr;
+      const nc = cc + dc;
+      if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+      if (grid[nr][nc] === 1) continue;
+
+      const nk = key(nr, nc);
+      const tentG = (gScore[currentKey] ?? Infinity) + 1;
+
+      if (tentG < (gScore[nk] ?? Infinity)) {
+        cameFrom[nk]  = currentKey;
+        gScore[nk]    = tentG;
+        fScore[nk]    = tentG + h(nr, nc);
+        openSet.set(nk, [nr, nc]);
       }
     }
   }
-  return [];
+
+  return []; // no path
 }
